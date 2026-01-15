@@ -21,8 +21,8 @@ public class PokerAPI {
 
 
 	private GameStage gameStage = GameStage.NOTSTARTED;
-	private int currentPlayerIdx = 0;
-	private int smallBlindIdx = 0;
+	private int currentPlayerIdx = -1;
+	private int smallBlindIdx = -1;
 	private int currentBet = 0;
 	private int pot = 0;
 	private int lastAggressorIdx = -1;
@@ -39,6 +39,11 @@ public class PokerAPI {
 	public void startGame() {
 		if (gameStage != GameStage.NOTSTARTED)
 			throw new IllegalStateException("Game already started");
+		pot = 0;
+		currentBet = 0;
+		lastAggressorIdx = -1;
+		smallBlindIdx = -1;
+		currentPlayerIdx = -1;
 		this.startHand();
 	}
 
@@ -70,26 +75,45 @@ public class PokerAPI {
 		currentBet = 0;
 		minRaise = MIN_BET * BIG_BLIND_MULTIPLIER;
 		lastAggressorIdx = -1;
+		currentPlayerIdx = smallBlindIdx;
+		while(currentPlayers.get(currentPlayerIdx).getState() != PlayerState.INGAME){
+			currentPlayerIdx = (currentPlayerIdx + 1) % currentPlayers.size();
+		}
 		for (Player p : currentPlayers) p.clearBet();
 		gameStage = gameStage.next();
 		switch (gameStage) {
-			case FLOP_BETS -> dealFlop();
-			case TURN_BETS -> dealTurn();
-			case RIVER_BETS -> dealRiver();
+			case FLOP -> dealFlop();
+			case TURN -> dealTurn();
+			case RIVER -> dealRiver();
 			case SHOWDOWN -> {/* showdown */}
 		}
-		currentPlayerIdx = smallBlindIdx;
+		gameStage = gameStage.next();
 	}
 
 	void advanceTurn() {
+		if (
+			lastAggressorIdx == -1 &&
+			gameStage == GameStage.PREFLOP_BETS &&
+			currentPlayers.get(currentPlayerIdx).getRole() == PlayerRole.BIGBLIND &&
+			allBetsMatched()
+		) {
+			advanceStreet();
+			return;
+		}
+
 		do {
 			currentPlayerIdx = (currentPlayerIdx + 1) % currentPlayers.size();
-		} while (currentPlayers.get(currentPlayerIdx).getState() != PlayerState.INGAME);
-
-		if (lastAggressorIdx != -1 &&
+		} while (
+			currentPlayers.get(currentPlayerIdx).getState() != PlayerState.INGAME && currentPlayerIdx != lastAggressorIdx
+		);
+		// CREATE START PLAYER ROUND TRACKING WHEN THERES NOT AGRESSOR
+		if (
+			lastAggressorIdx != -1 &&
 			currentPlayerIdx == lastAggressorIdx &&
-			allBetsMatched()) {
+			allBetsMatched()
+		) {
 			advanceStreet();
+			return;
 		}
 	}
 
@@ -126,7 +150,6 @@ public class PokerAPI {
 		currentPlayers.get(currentPlayerIdx).bet(bigBet); // big blind
 		addToPot(MIN_BET * BIG_BLIND_MULTIPLIER);
 		currentBet = bigBet;
-		lastAggressorIdx = currentPlayerIdx;
 		advanceTurn();
 	}
 
@@ -137,13 +160,14 @@ public class PokerAPI {
 			case RAISE:
 				throw new IllegalArgumentException("RAISE action requires amount");
 			case CHECK:
-				if(currentBet != 0) throw new IllegalArgumentException("CHECK action requires current bet to be 0");
+				if(currentBet != 0 && currentBet != player.getCurrentBet()) throw new IllegalArgumentException("CHECK action requires current bet to be 0");
 				advanceTurn();
 				break;
 			case CALL:
 				int toCall = currentBet - player.getCurrentBet();
 				player.bet(toCall);
 				addToPot(toCall);
+				if (player.getStack() == 0) player.setState(PlayerState.ALLIN);
 				advanceTurn();
 				break;
 			case FOLD:
@@ -231,6 +255,8 @@ public class PokerAPI {
 			for (Card card : table) System.out.print(card.getShortLabel() + " ");
 			System.out.println();
 		}
+		System.out.println("Pot value: " + pot);
+		System.out.println("Current bet: " + currentBet);
 		System.out.println("---------------------------------");
 		System.out.println("PLAYERS");
 		for (int i = 0; i < currentPlayers.size(); i++) {
@@ -244,6 +270,9 @@ public class PokerAPI {
 			}
 			System.out.print("- Bet: " + player.getCurrentBet() + " - Stack: " + player.getStack());
 			if (currentPlayerIdx == i) System.out.print(" ( Current Player )");
+			if(player.getState() == PlayerState.ALLIN) System.out.print(" ( ALLIN )");
+			if(player.getState() == PlayerState.FOLD) System.out.print(" ( FOLD )");
+			if(player.getState() == PlayerState.OUT) System.out.print(" ( OUT )");
 			System.out.println();
 		}
 		System.out.println("=================================");
