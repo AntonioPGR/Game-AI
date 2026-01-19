@@ -1,6 +1,8 @@
 import Enums.RankEnum;
 import Enums.SuitEnum;
+import lombok.Data;
 
+@Data
 public class Card {
 
 	public final RankEnum rank;

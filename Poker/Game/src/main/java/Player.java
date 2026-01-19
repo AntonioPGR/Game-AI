@@ -1,9 +1,11 @@
 import Enums.PlayerRole;
 import Enums.PlayerState;
+import lombok.Data;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Data
 public class Player {
 
 	private int stack;
@@ -17,7 +19,6 @@ public class Player {
 		this.role = PlayerRole.NONE;
 		this.state = PlayerState.INGAME;
 	}
-
 
 	// ACTIONS
 	void clearHand() {
@@ -44,32 +45,6 @@ public class Player {
 
 	void fold(){
 		this.state = PlayerState.FOLD;
-	}
-
-
-	// GETTERS
-	int getStack() {
-		return stack;
-	}
-	int getCurrentBet(){
-		return currentBet;
-	}
-	List<Card> getHand() {
-		return hand;
-	}
-	PlayerRole getRole() {
-		return role;
-	}
-	PlayerState getState() {
-		return state;
-	}
-
-	// SETTERS
-	void setRole(PlayerRole role) {
-		this.role = role;
-	}
-	void setState(PlayerState state) {
-		this.state = state;
 	}
 
 }
