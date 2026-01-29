@@ -1,5 +1,8 @@
-package Enums;
+package PokerAPI.Enums;
 
+import lombok.Getter;
+
+@Getter
 public enum SuitEnum {
 	DIAMONDS(0, "Diamonds", "♦"),
 	SPADES(1, "Spades", "♠"),
@@ -16,15 +19,4 @@ public enum SuitEnum {
 		this.shortLabel = shortLabel;
 	}
 
-	public int getPower() {
-		return power;
-	}
-
-	public String getLabel() {
-		return label;
-	}
-
-	public String getShortLabel() {
-		return shortLabel;
-	}
 }

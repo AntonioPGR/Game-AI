@@ -1,4 +1,4 @@
-package Enums;
+package PokerAPI.Enums;
 
 public enum PlayerState {
 	INGAME,

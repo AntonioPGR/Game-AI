@@ -1,39 +1,41 @@
-import Enums.*;
-import lombok.Data;
+package PokerAPI;
 
+import PokerAPI.Enums.*;
+import PokerAPI.Exceptions.InvalidPlayersNumberException;
+import PokerAPI.Model.*;
+import PokerAPI.Engine.HandResolver;
+import PokerAPI.config.PokerConfig;
+import lombok.Setter;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
-@Data
+
 public class PokerAPI {
 
-	private static final int MIN_PLAYERS = 3;
-	private static final int MAX_PLAYERS = 10;
-	private static final int START_STACK = 500;
-	private static final int MIN_BET = 5;
-	private static final int BIG_BLIND_MULTIPLIER = 2;
-	private static final int HOLE_CARDS = 2;
-	private static final int FLOP_CARDS = 3;
-	private final int BIG_BET = MIN_BET * BIG_BLIND_MULTIPLIER;
+	private final Deck deck = new Deck();
+	private final Table table = new Table();
+	private final Pot pot = new Pot();
 
-	private final List<Card> deck = new ArrayList<Card>();
-	private final List<Card> table = new ArrayList<Card>();
-	private final List<Player> allPlayers = new ArrayList<Player>();
-	private List<Player> currentPlayers = new ArrayList<Player>();
+	private final List<Player> allPlayers = new ArrayList<>();
+	private List<Player> currentPlayers = new ArrayList<>();
 
+	@Setter
 	private GameStage gameStage = GameStage.NOTSTARTED;
+	@Setter
 	private int currentPlayerIdx = -1;
+	@Setter
 	private int smallBlindIdx = -1;
+	@Setter
 	private int currentBet = 0;
-	private int pot = 0;
+	@Setter
 	private int lastAggressorIdx = -1;
-	private int minRaise = MIN_BET * BIG_BLIND_MULTIPLIER;
+	@Setter
+	private int minRaise = PokerConfig.MIN_RAISE;
 
-	public PokerAPI(int playerCount) {
-		if(playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS)
-			throw new IllegalArgumentException("A poker game should not have less than " + MIN_PLAYERS + " players and we also don't accept more than " + MAX_PLAYERS + " players!");
-		for(int i = 0; i < playerCount; i++) allPlayers.add(new Player(START_STACK));
+	public PokerAPI(int playerCount) throws InvalidPlayersNumberException {
+		if(playerCount < PokerConfig.MIN_PLAYERS || playerCount > PokerConfig.MAX_PLAYERS) throw new InvalidPlayersNumberException();
+		for(int i = 0; i < playerCount; i++)
+			allPlayers.add(new Player(PokerConfig.START_STACK));
 	}
 
 	// GAME RELATED
@@ -49,38 +51,31 @@ public class PokerAPI {
 		setGameStage(GameStage.PREFLOP);
 		currentPlayers = new ArrayList<>(allPlayers);
 		currentPlayers.removeIf(p -> p.getState() == PlayerState.OUT);
-		currentPlayers.forEach(p -> {
-			p.clearBet();
-			p.clearHand();
-			p.setRole(PlayerRole.NONE);
-		});
-		setPot(0);
+		currentPlayers.forEach(Player::resetForNewHand);
+		pot.clear();
 		setCurrentBet(0);
 		setLastAggressorIdx(-1);
-		setMinRaise(MIN_BET * BIG_BLIND_MULTIPLIER);
+		setMinRaise(PokerConfig.MIN_RAISE);
 		table.clear();
-		deck.clear();
+		deck.shuffle();
 		increaseSmallBlindIdx();
-		createDeck();
-		shuffleDeck();
 		dealRoles();
 		dealHoleCards();
-		gameStage = GameStage.PREFLOP_BETS;
 		takeMandatoryBets();
 	}
 
 	private void takeMandatoryBets(){
-		getCurrentPlayer().bet(MIN_BET);
-		addToPot(MIN_BET);
+		getCurrentPlayer().bet(PokerConfig.SMALL_BET);
+		pot.add(PokerConfig.SMALL_BET);
 		advanceTurn();
-		getCurrentPlayer().bet(BIG_BET);
-		addToPot(BIG_BET);
-		setCurrentBet(BIG_BET);
+		getCurrentPlayer().bet(PokerConfig.BIG_BET);
+		pot.add(PokerConfig.BIG_BET);
+		setCurrentBet(PokerConfig.BIG_BET);
 		advanceTurn();
 	}
 
-	void advanceTurn() {
-		if (lastAggressorIdx == -1 && gameStage == GameStage.PREFLOP_BETS && getCurrentPlayer().getRole() == PlayerRole.BIGBLIND && allBetsMatched()) {
+	void advanceTurn() { // Consider all finding except one
+		if (lastAggressorIdx == -1 && gameStage == GameStage.PREFLOP && getCurrentPlayer().getRole() == PlayerRole.BIG_BLIND && allBetsMatched()) {
 			advanceStreet();
 			return;
 		}
@@ -88,16 +83,15 @@ public class PokerAPI {
 		while (getCurrentPlayer().getState() != PlayerState.INGAME && currentPlayerIdx != lastAggressorIdx);
 		if (
 			(lastAggressorIdx != -1 && currentPlayerIdx == lastAggressorIdx && allBetsMatched()) ||
-			(lastAggressorIdx == -1 && currentPlayerIdx == 0 && gameStage != GameStage.PREFLOP_BETS && allBetsMatched()
+			(lastAggressorIdx == -1 && currentPlayerIdx == 0 && gameStage != GameStage.PREFLOP && allBetsMatched()
 		)) {
 			advanceStreet();
-			return;
 		}
 	}
 
 	void advanceStreet() {
 		setCurrentBet(0);
-		setMinRaise(MIN_BET);
+		setMinRaise(PokerConfig.SMALL_BET);
 		setLastAggressorIdx(-1);
 		setCurrentPlayerIdx(smallBlindIdx);
 		while(getCurrentPlayer().getState() != PlayerState.INGAME) setCurrentPlayerIdx((currentPlayerIdx + 1) % currentPlayers.size());
@@ -113,7 +107,7 @@ public class PokerAPI {
 	}
 
 	public void takeAction(PlayerAction action){
-		if(!gameStage.isBetStage()) throw new IllegalStateException("Not bet stage!");
+		if(gameStage.isBetStage()) throw new IllegalStateException("Not bet stage!");
 		Player player = getCurrentPlayer();
 		switch (action) {
 			case RAISE:
@@ -123,10 +117,11 @@ public class PokerAPI {
 				advanceTurn();
 				break;
 			case CALL:
+				if(currentBet == player.getCurrentBet() || currentBet == 0) throw new IllegalArgumentException("Cannot call - Calling with same bet is checking!");
 				int toCall = currentBet - player.getCurrentBet();
 				if(toCall == player.getStack()) throw new IllegalArgumentException("Cannot call - Calling with all stack value requires all in!");
 				player.bet(toCall);
-				addToPot(toCall);
+				pot.add(toCall);
 				advanceTurn();
 				break;
 			case FOLD:
@@ -135,26 +130,25 @@ public class PokerAPI {
 				break;
 			case ALL_IN:
 				int amount = player.getStack();
-				player.bet(amount);
-				addToPot(amount);
+				player.goAllIn();
+				pot.add(amount);
 				if (player.getCurrentBet() > currentBet) {
 					setCurrentBet(player.getCurrentBet());
 					setLastAggressorIdx(currentPlayerIdx);
 				}
-				player.setState(PlayerState.ALLIN);
 				advanceTurn();
 				break;
 		}
 	}
 	public void takeAction(PlayerAction action, int amount){
-		if(!gameStage.isBetStage()) throw new IllegalStateException("Not bet stage!");
+		if(gameStage.isBetStage()) throw new IllegalStateException("Not bet stage!");
 		if(action != PlayerAction.RAISE) throw new IllegalArgumentException("Only RAISE action requires amount");
 		if(amount < minRaise) throw new IllegalArgumentException("Amount must be at least " + minRaise);
 		Player player = getCurrentPlayer();
 		int toCall = currentBet - player.getCurrentBet();
 		int total = toCall + amount;
 		player.bet(total);
-		addToPot(total);
+		pot.add(total);
 		setCurrentBet(currentBet + amount);
 		setMinRaise(amount);
 		setLastAggressorIdx(currentPlayerIdx);
@@ -163,7 +157,29 @@ public class PokerAPI {
 
 
 	void resolvePot(){
+		int WinnerIdx = getWinnerIdx(); // Consider half pot
+		currentPlayers.get(WinnerIdx).earn(pot.getValue());
+		this.startHand();
+	}
 
+	int getWinnerIdx(){
+		if(currentPlayers.size() == 1) return 0;
+
+		int bestIdx = -1;
+		int bestValue = -1;
+		for(int idx = 0; idx < currentPlayers.size(); idx++){
+			Player p = currentPlayers.get(idx);
+			List<Card> sevenCards = new ArrayList<>();
+			sevenCards.addAll(p.getHoleCards());
+			sevenCards.addAll(table.getCards());
+			int handValue = new HandResolver(sevenCards).getValue();
+			if(bestIdx == -1 || handValue > bestValue){
+				bestIdx = idx;
+				bestValue = handValue;
+			}
+		}
+
+		return bestIdx;
 	}
 
 	boolean allBetsMatched(){
@@ -177,17 +193,13 @@ public class PokerAPI {
 		return all_bets_equal;
 	}
 
-	void addToPot(int amount){
-		setPot(pot + amount);
-	}
-
 	// ROLES RELATED
 	private void dealRoles(){
-		for (Player player : currentPlayers) player.setRole(PlayerRole.NONE);
+		for (Player player : currentPlayers) player.clearRole();
 		smallBlindIdx = (smallBlindIdx) % currentPlayers.size();
 		setCurrentPlayerIdx(smallBlindIdx);
-		currentPlayers.get(smallBlindIdx).setRole(PlayerRole.SMALLBLIND);
-		currentPlayers.get((smallBlindIdx + 1) % currentPlayers.size()).setRole(PlayerRole.BIGBLIND);
+		currentPlayers.get(smallBlindIdx).setAsSmallBlind();
+		currentPlayers.get((smallBlindIdx + 1) % currentPlayers.size()).setAsBigBlind();
 	}
 
 	// ACTIONS RELATED
@@ -200,46 +212,31 @@ public class PokerAPI {
 	}
 
 	// DECK RELATED
-	private void createDeck(){
-		for(SuitEnum suit :  SuitEnum.values()){
-			for(RankEnum rank : RankEnum.values()){
-				deck.add(new Card(rank,suit));
-			}
-		}
-	}
-
-	private void shuffleDeck(){
-		Collections.shuffle(deck);
-	}
 
 	private void dealHoleCards(){
 		int dealIdx = this.smallBlindIdx;
-		for (int cardRound = 0; cardRound < HOLE_CARDS; cardRound++) {
+		for (int cardRound = 0; cardRound < PokerConfig.HOLE_CARDS; cardRound++) {
 			for (int i = 0; i < currentPlayers.size(); i++) {
-				Card card = deck.removeFirst();
-				currentPlayers.get(dealIdx).addCardToHand(card);
+				Card card = deck.draw();
+				currentPlayers.get(dealIdx).addHoleCard(card);
 				dealIdx = (dealIdx + 1) % currentPlayers.size();
 			}
 		}
 	}
 
-	private void burnCard(){
-		deck.removeFirst();
-	}
-
 	private void dealFlop(){
-		this.burnCard();
-		for(int i = 0; i < FLOP_CARDS; i++) table.add(deck.removeFirst());
+		deck.burn();
+		for(int i = 0; i < PokerConfig.FLOP_CARDS; i++) table.add(deck.draw());
 	}
 
 	private void dealTurn(){
-		this.burnCard();
-		table.add(deck.removeFirst());
+		deck.burn();
+		table.add(deck.draw());
 	}
 
 	private void dealRiver(){
-		this.burnCard();
-		table.add(deck.removeFirst());
+		deck.burn();
+		table.add(deck.draw());
 	}
 
 	private Player getCurrentPlayer(){
@@ -253,7 +250,7 @@ public class PokerAPI {
 		System.out.print("Community cards: ");
 		if (table.isEmpty()) System.out.println("(none)");
 		else {
-			for (Card card : table) System.out.print(card.getShortLabel() + " ");
+			for (Card card : table.getCards()) System.out.print(card.getShortLabel() + " ");
 			System.out.println();
 		}
 		System.out.println("Pot value: " + pot);
@@ -262,15 +259,15 @@ public class PokerAPI {
 		System.out.println("PLAYERS");
 		for (int i = 0; i < currentPlayers.size(); i++) {
 			Player player = currentPlayers.get(i);
-			System.out.print("Player " + (i + 1));
+			System.out.print("PokerAPI.Model.Player " + (i + 1));
 			if (player.getRole() != PlayerRole.NONE) System.out.print(" [" + player.getRole().getLabel() + "]");
-			System.out.print(" -> Hand: ");
-			if (player.getHand().isEmpty()) System.out.println("(no cards)");
+			System.out.print(" -> PokerAPI.Engine.Hand: ");
+			if (player.getHoleCards().isEmpty()) System.out.println("(no cards)");
 			else {
-				for (Card card : player.getHand()) System.out.print(card.getShortLabel() + " ");
+				for (Card card : player.getHoleCards()) System.out.print(card.getShortLabel() + " ");
 			}
 			System.out.print("- Bet: " + player.getCurrentBet() + " - Stack: " + player.getStack());
-			if (currentPlayerIdx == i) System.out.print(" ( Current Player )");
+			if (currentPlayerIdx == i) System.out.print(" ( Current PokerAPI.Model.Player )");
 			if(player.getState() == PlayerState.ALLIN) System.out.print(" ( ALLIN )");
 			if(player.getState() == PlayerState.FOLD) System.out.print(" ( FOLD )");
 			if(player.getState() == PlayerState.OUT) System.out.print(" ( OUT )");

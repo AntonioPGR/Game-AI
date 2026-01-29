@@ -1,20 +1,19 @@
-import Enums.RankEnum;
-import Enums.SuitEnum;
-import lombok.Data;
+package PokerAPI.Model;
 
-@Data
+import PokerAPI.Enums.RankEnum;
+import PokerAPI.Enums.SuitEnum;
+import lombok.Data;
+import lombok.Getter;
+
+@Getter
 public class Card {
 
-	public final RankEnum rank;
-	public final SuitEnum suit;
+	private final RankEnum rank;
+	private final SuitEnum suit;
 
 	Card(RankEnum rank, SuitEnum suit) {
 		this.rank = rank;
 		this.suit = suit;
-	}
-
-	public int getPower(){
-		return rank.getPower() * 10 + suit.getPower();
 	}
 
 	public String getLabel(){

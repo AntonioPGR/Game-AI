@@ -1,4 +1,5 @@
-import Enums.PlayerAction;
+import PokerAPI.Enums.PlayerAction;
+import PokerAPI.PokerAPI;
 
 import java.util.Scanner;
 

@@ -1,8 +1,8 @@
-package Enums;
+package PokerAPI.Enums;
 
 public enum PlayerRole {
-	BIGBLIND("Big Blind"),
-	SMALLBLIND("Small Blind"),
+	BIG_BLIND("Big Blind"),
+	SMALL_BLIND("Small Blind"),
 	NONE("None");
 
 	private final String label;
