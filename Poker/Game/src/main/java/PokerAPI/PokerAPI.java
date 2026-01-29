@@ -1,5 +1,7 @@
 package PokerAPI;
 
+import PokerAPI.Engine.Dealer;
+import PokerAPI.Engine.Printer;
 import PokerAPI.Enums.*;
 import PokerAPI.Exceptions.InvalidPlayersNumberException;
 import PokerAPI.Model.*;
@@ -18,6 +20,9 @@ public class PokerAPI {
 
 	private final List<Player> allPlayers = new ArrayList<>();
 	private List<Player> currentPlayers = new ArrayList<>();
+
+	private final Printer display = new Printer(table, pot, allPlayers);
+	private final Dealer dealer = new Dealer(table, deck, currentPlayers);
 
 	@Setter
 	private GameStage gameStage = GameStage.NOTSTARTED;
@@ -59,8 +64,8 @@ public class PokerAPI {
 		table.clear();
 		deck.shuffle();
 		increaseSmallBlindIdx();
-		dealRoles();
-		dealHoleCards();
+		dealer.dealRoles(smallBlindIdx);
+		dealer.dealHoleCards(smallBlindIdx);
 		takeMandatoryBets();
 	}
 
@@ -98,9 +103,9 @@ public class PokerAPI {
 		for (Player p : currentPlayers) p.clearBet();
 		advanceGameStage();
 		switch (gameStage) {
-			case FLOP -> dealFlop();
-			case TURN -> dealTurn();
-			case RIVER -> dealRiver();
+			case FLOP -> dealer.dealFlop();
+			case TURN -> dealer.dealTurn();
+			case RIVER -> dealer.dealRiver();
 			case SHOWDOWN -> resolvePot();
 		}
 		advanceGameStage();
@@ -193,15 +198,6 @@ public class PokerAPI {
 		return all_bets_equal;
 	}
 
-	// ROLES RELATED
-	private void dealRoles(){
-		for (Player player : currentPlayers) player.clearRole();
-		smallBlindIdx = (smallBlindIdx) % currentPlayers.size();
-		setCurrentPlayerIdx(smallBlindIdx);
-		currentPlayers.get(smallBlindIdx).setAsSmallBlind();
-		currentPlayers.get((smallBlindIdx + 1) % currentPlayers.size()).setAsBigBlind();
-	}
-
 	// ACTIONS RELATED
 	void advanceGameStage(){
 		setGameStage(gameStage.next());
@@ -211,69 +207,14 @@ public class PokerAPI {
 		setSmallBlindIdx((smallBlindIdx + 1) % currentPlayers.size());
 	}
 
-	// DECK RELATED
-
-	private void dealHoleCards(){
-		int dealIdx = this.smallBlindIdx;
-		for (int cardRound = 0; cardRound < PokerConfig.HOLE_CARDS; cardRound++) {
-			for (int i = 0; i < currentPlayers.size(); i++) {
-				Card card = deck.draw();
-				currentPlayers.get(dealIdx).addHoleCard(card);
-				dealIdx = (dealIdx + 1) % currentPlayers.size();
-			}
-		}
-	}
-
-	private void dealFlop(){
-		deck.burn();
-		for(int i = 0; i < PokerConfig.FLOP_CARDS; i++) table.add(deck.draw());
-	}
-
-	private void dealTurn(){
-		deck.burn();
-		table.add(deck.draw());
-	}
-
-	private void dealRiver(){
-		deck.burn();
-		table.add(deck.draw());
-	}
 
 	private Player getCurrentPlayer(){
 		return currentPlayers.get(currentPlayerIdx);
 	}
 
-	// DISPLAY RELATED
-	public void printTableState() {
-		System.out.println("=================================");
-		System.out.println("TABLE");
-		System.out.print("Community cards: ");
-		if (table.isEmpty()) System.out.println("(none)");
-		else {
-			for (Card card : table.getCards()) System.out.print(card.getShortLabel() + " ");
-			System.out.println();
-		}
-		System.out.println("Pot value: " + pot);
-		System.out.println("Current bet: " + currentBet);
-		System.out.println("---------------------------------");
-		System.out.println("PLAYERS");
-		for (int i = 0; i < currentPlayers.size(); i++) {
-			Player player = currentPlayers.get(i);
-			System.out.print("PokerAPI.Model.Player " + (i + 1));
-			if (player.getRole() != PlayerRole.NONE) System.out.print(" [" + player.getRole().getLabel() + "]");
-			System.out.print(" -> PokerAPI.Engine.Hand: ");
-			if (player.getHoleCards().isEmpty()) System.out.println("(no cards)");
-			else {
-				for (Card card : player.getHoleCards()) System.out.print(card.getShortLabel() + " ");
-			}
-			System.out.print("- Bet: " + player.getCurrentBet() + " - Stack: " + player.getStack());
-			if (currentPlayerIdx == i) System.out.print(" ( Current PokerAPI.Model.Player )");
-			if(player.getState() == PlayerState.ALLIN) System.out.print(" ( ALLIN )");
-			if(player.getState() == PlayerState.FOLD) System.out.print(" ( FOLD )");
-			if(player.getState() == PlayerState.OUT) System.out.print(" ( OUT )");
-			System.out.println();
-		}
-		System.out.println("=================================");
+	public void displayTable(){
+		display.clearTerminal();
+		display.printTableStateInTerminal(currentPlayerIdx, currentBet);
 	}
 
 }
