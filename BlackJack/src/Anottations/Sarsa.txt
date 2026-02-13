@@ -1,0 +1,78 @@
+# QLEARN TRAINING =============================================
+static void trainAgent(){
+  Printer.printLn(">>>> TRAINING");
+  int nextMilestone = 0;
+
+  for (int i = 1; i <= TRAIN_STEPS; i++) {
+    // PROGRESS LOG
+    int progress = (i * 100) / TRAIN_STEPS;
+    if (progress >= nextMilestone) {
+      Printer.printLn(nextMilestone + "%");
+      nextMilestone += 10;
+    }
+
+    // RUN GAME
+    gameHandler.startGame();
+    GameState prevState = gameHandler.getGameState();
+    int prevAction = agent.chooseAction(gameHandler.getGameState());
+    while (!gameHandler.isGameEnded()) {
+      gameHandler.takeAction(prevAction == agent.HIT ? PlayerAction.HIT : PlayerAction.STAND);
+      if (gameHandler.isGameEnded()) break;
+
+      GameState nextState = gameHandler.getGameState();
+      int nextAction = agent.chooseAction(nextState);
+      agent.updateStep(prevState, prevAction, nextState, nextAction, 0);
+
+      prevState = nextState;
+      prevAction = nextAction;
+    }
+
+    // EVALUATE REWARD
+    int reward = 0;
+    switch (gameHandler.getGameResult()){
+      case PLAYER_WIN -> reward = 1;
+      case DEALER_WIN -> reward = -1;
+    }
+    if (prevState != null) agent.updateTerminal(prevState, prevAction, reward);
+  }
+}
+
+# ONLY HIT AND STAND ==========================================
+# 1 ===========================================================
+43458/48597/7945
+
+TRAIN_STEPS = 100000
+
+Alpha = 0.01
+Gamma = 1.0
+
+Epsilon = 1
+decayRate = 1.2857142857142857E-5
+minEpsilon = 0.1
+explorationPercentage = 0.7
+
+# 2 ===========================================================
+43660/48304/8036
+
+TRAIN_STEPS = 10000000
+
+Alpha = 0.01
+Gamma = 1.0
+
+Epsilon = 1
+decayRate = 1.2857142857142858E-7
+minEpsilon = 0.1
+explorationPercentage = 0.7
+
+# 3 ===========================================================
+43454/48312/8234
+
+TRAIN_STEPS = 100000000
+
+Alpha = 0.01
+Gamma = 1.0
+
+Epsilon = 1
+decayRate = 1.2857142857142857E-8
+minEpsilon = 0.1
+explorationPercentage = 0.7
