@@ -23,3 +23,11 @@ minEpsilon = 0.1
 explorationPercentage = 0.7
 
 # 3 ===========================================================
+43398/49122/7480
+
+TRAIN_STEPS = 100000000
+
+Epsilon = 1
+decayRate = 1.2857142857142857E-8
+minEpsilon = 0.1
+explorationPercentage = 0.7
