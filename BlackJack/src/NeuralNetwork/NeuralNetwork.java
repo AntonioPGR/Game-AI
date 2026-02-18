@@ -7,11 +7,29 @@ public class NeuralNetwork {
 
 	public NeuralNetwork(int inputs, int hiddenLayers, int outputs) {
 		layers = new NNLayer[hiddenLayers + 1];
-		layers[0] = new NNLayer(inputs, layersSize, 0);
-		for(int i = 1; i < layersSize; i++){
-			layers[i] = new NNLayer(layersSize, layersSize, i);
+		for(int i = 0; i <= hiddenLayers; i++){
+			int in = (i == 0) ? inputs : layersSize;
+			int out = (i == hiddenLayers) ? outputs : layersSize;
+			ActivationFunctions func = (i == hiddenLayers) ? ActivationFunctions.NONE : ActivationFunctions.RELU;
+			layers[i] = new NNLayer(i, in, out, func, 0.1d, 0.1d);
 		}
-		layers[hiddenLayers] = new NNLayer(layersSize, outputs, hiddenLayers);
 	}
+
+	public double[][] forward(double[][] input){
+		double[][] output = input;
+		for(NNLayer layer : layers){
+			output = layer.forward(output);
+		}
+		return output;
+	}
+
+	public void backward(double[][] input, double[][] expectedOutput){
+		double[][] output = forward(input);
+		double[][] errors = MatrixOperations.MatrixMatrixSubtract(output, expectedOutput);
+		for(int i = layers.length - 1; i >= 0; i--){
+			errors = layers[i].backward(errors);
+		}
+	}
+
 
 }
