@@ -47,25 +47,46 @@ public class NNLayer {
 
 	// input x weights = output
 	public double[][] forward(double[][] newInput){
-		input[0][0] = 1;
-		for(int i = 0; i < newInput[0].length; i++){
-			input[0][i+1] = newInput[0][i];
+		input[0][input[0].length] = 1;
+		for(int i = 0; i < newInput[0].length - 1; i++){
+			input[0][i] = newInput[0][i];
 		}
 		rawOutput = MatrixOperations.MatrixMatrixMultiply(input, weights);
 		switch (activationFunction){
 			case RELU -> activatedOutput = ActivationFunctionsHandler.ReLu(rawOutput);
 			case SIGMOID -> activatedOutput = ActivationFunctionsHandler.Sigmoid(rawOutput);
 			case NONE -> activatedOutput = rawOutput;
+			default -> activatedOutput = ActivationFunctionsHandler.ReLu(rawOutput);
 		}
 
 		return activatedOutput;
 	}
 
 	public double[][] backward(double[][] errors){
-
-		double[][] nextLayerError = errors;
+		double[][] nextLayerError = nextLayerError(errors);
 		double[][] internalOutputs = activatedOutput;
 
+		double[][] tempMatrix1;
+		switch (activationFunction) {
+			case RELU -> tempMatrix1 = ActivationFunctionsHandler.DReLu(rawOutput);
+			case SIGMOID -> tempMatrix1 = ActivationFunctionsHandler.DSigmoid(rawOutput);
+			case NONE -> tempMatrix1 = rawOutput;
+			default ->  tempMatrix1 = ActivationFunctionsHandler.DReLu(rawOutput);
+		}
+		tempMatrix1 = MatrixOperations.MatrixScalarMultiply(tempMatrix1, learningRate);
+		double[][] tempMatrix2 = MatrixOperations.MatrixScalarMultiply(errors, learningRate);
+		tempMatrix2 = MatrixOperations.MatrixMatrixMultiply(tempMatrix1, tempMatrix2);
+
+		tempMatrix1 = MatrixOperations.MatrixTranspose(input);
+		tempMatrix2 = MatrixOperations.MatrixMatrixMultiply(tempMatrix1, tempMatrix2);
+
+		double[][] previousDerivativeWithDelta = MatrixOperations.MatrixScalarMultiply(dWeights, momentum);
+		previousDerivativeWithDelta = MatrixOperations.MatrixMatrixAdd(tempMatrix2, previousDerivativeWithDelta);
+
+		dWeights = tempMatrix2;
+		weights = MatrixOperations.MatrixMatrixSubtract(weights, previousDerivativeWithDelta);
+
+		return nextLayerError;
 	}
 
 	// PRIVATE
