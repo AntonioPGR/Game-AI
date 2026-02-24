@@ -1,5 +1,37 @@
 # Monte Carlo TRAINING =============================================
+static void trainAgent(){
+  Printer.printLn(">>>> TRAINING");
+  int nextMilestone = 0;
 
+  for (int i = 1; i <= TRAIN_STEPS; i++) {
+    // PROGRESS LOG
+    int progress = (i * 100) / TRAIN_STEPS;
+    if (progress >= nextMilestone) {
+      Printer.printLn(nextMilestone + "%");
+      nextMilestone += 10;
+    }
+
+    // RUN GAME
+    GameState state = null;
+    int action = 0;
+
+    gameHandler.startGame();
+    while (!gameHandler.isGameEnded()) {
+      state = gameHandler.getGameState();
+      action = agent.chooseAction(state);
+      agent.addAction(state, action);
+      gameHandler.takeAction(action == agent.HIT ? PlayerAction.HIT : PlayerAction.STAND);
+    }
+
+    // EVALUATE REWARD
+    int reward = 0;
+    switch (gameHandler.getGameResult()){
+      case PLAYER_WIN -> reward = 1;
+      case DEALER_WIN -> reward = -1;
+    }
+    agent.updateTerminal(reward);
+  }
+}
 
 # ONLY HIT AND STAND ==========================================
 # 1 ===========================================================

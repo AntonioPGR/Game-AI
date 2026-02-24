@@ -1,0 +1,9 @@
+>>>> EVALUATION
+43391/48191/8418
+
+TRAIN_STEPS = 1000000
+
+Epsilon = 1
+decayRate = 1.8999999999999998E-6
+minEpsilon = 0.05
+explorationPercentage = 0.5

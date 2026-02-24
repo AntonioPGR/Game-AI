@@ -1,6 +1,6 @@
 package TrucoAPI.Enums;
 
-public enum PlayerActions {
+public enum PlayerAction {
 	CALL_TRUCO,
 	FOLD,
 	PLAY_CARD
